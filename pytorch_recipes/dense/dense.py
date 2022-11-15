@@ -18,14 +18,15 @@ class DenseNet(Module):
         shape = zip(inputs, outputs)
         self._layers = []
         for s in shape:
-            print(s)
-            self._layers.append(Linear(s[0], s[1], True))
+            self._layers.append(Linear(s[0], s[1], True, dtype=torch.float32))
+        self._layers = torch.nn.ModuleList(self._layers)
 
     def forward(self, x):
         """
         Runs inference on the supplied data point.
         """
-        for layer in self._layers:
+        for i, layer in enumerate(self._layers):
             x = layer(x)
-            x = F.relu(x)
-        return F.log_softmax(x)
+            if i != len(self._layers) - 1:
+                x = F.relu(x)
+        return x
