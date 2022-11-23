@@ -2,8 +2,9 @@ import torch
 import torch.nn.functional as F
 from torchvision.models import resnet50, ResNet50_Weights
 from torchvision.models import resnet152, ResNet152_Weights
-from torch.nn import Module, ModuleList, AdaptiveAvgPool2d, Sequential, Linear, ReLU
+from torch.nn import Module, ModuleList, AdaptiveAvgPool2d, Sequential, Linear, ReLU, Dropout
 from enum import Enum
+from typing import List
 
 class Encoder(Enum):
     RESNET50 = 0
@@ -12,7 +13,7 @@ class Encoder(Enum):
 
 
 class ClassificationModel(Module):
-    def __init__(self, num_classes: int, freeze_encoder = False, enocder = Encoder.RESNET50):
+    def __init__(self, num_classes: int, layers: List[int], freeze_encoder = False, enocder = Encoder.RESNET50, dropout = 0.0):
         super(ClassificationModel, self).__init__()
         with torch.no_grad():
             if enocder == Encoder.RESNET50:
@@ -33,11 +34,18 @@ class ClassificationModel(Module):
             for enc in self.encoder:
                 for param in enc.parameters():
                     param.requires_grad = not freeze_encoder
-        self.classifier = Sequential(
-            Linear(2048, 512),
-            ReLU(inplace=True),
-            Linear(512, num_classes)
-        )
+        input_shape = 2048
+        inputs = [input_shape] + layers[:-1]
+        outputs = layers[1:] + [num_classes]
+        shape = zip(inputs, outputs)
+        layers = []
+        for i, s in enumerate(shape):
+            layers.append(Linear(s[0], s[1], True, dtype=torch.float32))
+            if i != len(inputs) - 1:
+                layers.append(ReLU(inplace = True))
+                if dropout != 0:
+                    layers.append(Dropout(dropout))
+        self.classifier = Sequential(*layers)
 
     def forward(self, x):
         encoded = x
